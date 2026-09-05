@@ -1,67 +1,4 @@
-import { useState } from 'react';
-import Link from 'next/link';
-import Layout from '../components/Layout';
-import { getAllPosts } from '../lib/posts';
-
-export default function Home({ allPosts = [] }) {
-  const [url, setUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState('');
-  const [downloadPreparing, setDownloadPreparing] = useState(false);
-
-  const handleDownload = async (e) => {
-    e.preventDefault();
-
-    if (loading || !url.trim()) return;
-
-    setLoading(true);
-    setError('');
-    setResult(null);
-    setDownloadPreparing(false);
-
-    try {
-      const res = await fetch('/api/parse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: url.trim(),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || data.success === false) {
-        throw new Error(
-          data.error || 'Unable to process this video.'
-        );
-      }
-
-      const videoUrl =
-        data.downloadUrl ||
-        data.directUrl ||
-        '';
-
-      if (!videoUrl) {
-        throw new Error(
-          'No downloadable video was found.'
-        );
-      }
-
-      setResult({
-        ...data,
-        videoUrl,
-      });
-    } catch (err) {
-      setError(
-        err.message || 'Something went wrong.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+import { useSt
 
   const handlePaste = async () => {
     try {
@@ -75,42 +12,105 @@ export default function Home({ allPosts = [] }) {
     }
   };
 
-  const handleVideoDownload = () => {
-  if (!result?.videoUrl || downloadPreparing) return;
+  const handleDownload = async (e) => {
+  e.preventDefault();
 
-  setDownloadPreparing(true);
+  if (loading || !url.trim()) return;
+
+  setLoading(true);
   setError('');
+  setResult(null);
+  setDownloadPreparing(true);
 
-  const link = document.createElement('a');
-  link.href = result.videoUrl;
-  link.download = 'Bilibili-Video.mp4';
-  link.style.display = 'none';
+  try {
+    const res = await fetch('/api/parse', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: url.trim(),
+      }),
+    });
 
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+    const data = await res.json();
+
+    if (!res.ok || data.success === false) {
+      throw new Error(
+        data.error || 'Unable to process this video.'
+      );
+    }
+
+    const downloadUrl = data.downloadUrl;
+    const jobId = data.jobId;
+
+    if (!downloadUrl || !jobId) {
+      throw new Error(
+        'Download job was not created correctly.'
+      );
+    }
+
+    setResult({
+      ...data,
+      videoUrl: downloadUrl,
+    });
+
+    setLoading(false);
+
+    const checkStatus = async () => {
+      try {
+        const statusRes = await fetch(
+          `/api/status?jobId=${encodeURIComponent(jobId)}`,
+          {
+            cache: 'no-store',
+          }
+        );
+
+        const statusData = await statusRes.json();
+
+        if (!statusRes.ok || statusData.success === false) {
+          throw new Error(
+            statusData.error ||
+              'Unable to check download status.'
+          );
+        }
+
+        if (statusData.status === 'ready') {
+          setDownloadPreparing(false);
+
+          // Start the actual MP4 download automatically.
+          window.location.assign(downloadUrl);
+
+          return;
+        }
+
+        if (statusData.status === 'error') {
+          throw new Error(
+            statusData.error ||
+              'Could not prepare the video.'
+          );
+        }
+
+        setTimeout(checkStatus, 1000);
+      } catch (err) {
+        setDownloadPreparing(false);
+        setError(
+          err.message ||
+            'Something went wrong while preparing the video.'
+        );
+      }
+    };
+
+    checkStatus();
+  } catch (err) {
+    setLoading(false);
+    setDownloadPreparing(false);
+
+    setError(
+      err.message || 'Something went wrong.'
+    );
+  }
 };
-  const formatFileSize = (bytes) => {
-    if (!bytes || isNaN(bytes)) return '';
-
-    const size = Number(bytes);
-
-    if (size < 1024 * 1024) {
-      return `${(size / 1024).toFixed(1)} KB`;
-    }
-
-    if (size < 1024 * 1024 * 1024) {
-      return `${(
-        size /
-        (1024 * 1024)
-      ).toFixed(1)} MB`;
-    }
-
-    return `${(
-      size /
-      (1024 * 1024 * 1024)
-    ).toFixed(2)} GB`;
-  };
 
   const videoSize =
     result?.filesize ||
