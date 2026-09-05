@@ -76,16 +76,20 @@ export default function Home({ allPosts = [] }) {
   };
 
   const handleVideoDownload = () => {
-    if (!result?.videoUrl || downloadPreparing) {
-      return;
-    }
+  if (!result?.videoUrl || downloadPreparing) return;
 
-    setDownloadPreparing(true);
-    setError('');
+  setDownloadPreparing(true);
+  setError('');
 
-    window.location.assign(result.videoUrl);
-  };
+  const link = document.createElement('a');
+  link.href = result.videoUrl;
+  link.download = 'Bilibili-Video.mp4';
+  link.style.display = 'none';
 
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
   const formatFileSize = (bytes) => {
     if (!bytes || isNaN(bytes)) return '';
 
