@@ -1,5 +1,4 @@
-import { getDownloadJob } from '../../../lib/downloadJobs';
-
+import { getDownloadJob } from '../../lib/downloadJobs';
 export default function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({
