@@ -1,4 +1,14 @@
-import { useSt
+import { useState } from 'react';
+import Link from 'next/link';
+import Layout from '../components/Layout';
+import { getAllPosts } from '../lib/posts';
+
+export default function Home({ allPosts }) {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [downloadPreparing, setDownloadPreparing] = useState(false);
 
   const handlePaste = async () => {
     try {
