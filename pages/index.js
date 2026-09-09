@@ -21,6 +21,11 @@ export default function Home({ allPosts }) {
       console.error('Paste failed:', err);
     }
   };
+  const handleVideoDownload = () => {
+  if (!result?.videoUrl || downloadPreparing) return;
+
+  window.location.assign(result.videoUrl);
+};
     const handleVideoDownload = () => {
     if (!result?.videoUrl || downloadPreparing) return;
 
@@ -91,12 +96,15 @@ export default function Home({ allPosts }) {
         }
 
         if (statusData.status === 'ready') {
-          setDownloadPreparing(false);
+  setDownloadPreparing(false);
 
-          // Start the actual MP4 download automatically.
-          window.location.assign(downloadUrl);
+  setResult((prev) => ({
+    ...prev,
+    videoUrl: downloadUrl,
+    ready: true,
+  }));
 
-          return;
+  return;
         }
 
         if (statusData.status === 'error') {
@@ -321,29 +329,31 @@ export default function Home({ allPosts }) {
                 )}
 
                 <button
-                  type="button"
-                  onClick={handleVideoDownload}
-                  disabled={downloadPreparing}
-                  style={{
-                    background: '#10b981',
-                    color: '#fff',
-                    padding: '9px 16px',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    border: 'none',
-                    cursor: downloadPreparing
-                      ? 'wait'
-                      : 'pointer',
-                    opacity: downloadPreparing
-                      ? 0.7
-                      : 1,
-                  }}
-                >
-                  {downloadPreparing
-                    ? '⏳ Preparing...'
-                    : 'Download MP4 📥'}
-                </button>
-
+  type="button"
+  onClick={handleVideoDownload}
+  disabled={downloadPreparing || !result?.ready}
+  style={{
+    background: result?.ready
+      ? '#10b981'
+      : '#94a3b8',
+    color: '#fff',
+    padding: '10px 18px',
+    borderRadius: '10px',
+    fontWeight: 700,
+    border: 'none',
+    cursor: result?.ready
+      ? 'pointer'
+      : 'wait',
+    opacity: 1,
+    minWidth: '170px',
+  }}
+>
+  {downloadPreparing
+    ? '⏳ Preparing...'
+    : result?.ready
+      ? 'Download MP4 📥'
+      : '⏳ Preparing...'}
+</button>
                 {downloadPreparing && (
                   <div
                     style={{
