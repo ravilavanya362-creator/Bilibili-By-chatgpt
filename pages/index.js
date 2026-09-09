@@ -21,6 +21,11 @@ export default function Home({ allPosts }) {
       console.error('Paste failed:', err);
     }
   };
+    const handleVideoDownload = () => {
+    if (!result?.videoUrl || downloadPreparing) return;
+
+    window.location.assign(result.videoUrl);
+  };
 
   const handleDownload = async (e) => {
   e.preventDefault();
@@ -121,6 +126,21 @@ export default function Home({ allPosts }) {
     );
   }
 };
+  function formatFileSize(bytes) {
+  const value = Number(bytes) || 0;
+
+  if (value < 1024) return `${value} B`;
+
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+
+  if (value < 1024 * 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
 
   const videoSize =
     result?.filesize ||
@@ -691,4 +711,4 @@ export async function getStaticProps() {
       allPosts,
     },
   };
-                      }
+}
