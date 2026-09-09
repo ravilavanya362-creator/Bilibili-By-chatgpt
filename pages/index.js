@@ -21,11 +21,7 @@ export default function Home({ allPosts }) {
       console.error('Paste failed:', err);
     }
   };
-  const handleVideoDownload = () => {
-  if (!result?.videoUrl || downloadPreparing) return;
-
-  window.location.assign(result.videoUrl);
-};
+  
     const handleVideoDownload = () => {
     if (!result?.videoUrl || downloadPreparing) return;
 
