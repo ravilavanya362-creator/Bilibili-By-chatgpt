@@ -29,26 +29,25 @@ export default function Home({ allPosts }) {
   };
 
   const handleDownload = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (loading || !url.trim()) return;
+    if (loading || !url.trim()) return;
 
-  setLoading(true);
-  setError('');
-  setResult(null);
-  setDownloadPreparing(flase);
+    setLoading(true);
+    setError('');
+    setResult(null);
+    setDownloadPreparing(false);
 
-  try {
-    const res = await fetch('/api/parse', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: url.trim(),
-      }),
-  
-        
+    try {
+      const res = await fetch('/api/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url.trim(),
+        }),
+      });
 
       const data = await res.json();
 
@@ -65,6 +64,7 @@ export default function Home({ allPosts }) {
       });
 
       setLoading(false);
+      setDownloadPreparing(false);
     } catch (err) {
       setLoading(false);
       setDownloadPreparing(false);
@@ -74,7 +74,7 @@ export default function Home({ allPosts }) {
       );
     }
   };
-  
+
   function formatFileSize(bytes) {
   const value = Number(bytes) || 0;
 
