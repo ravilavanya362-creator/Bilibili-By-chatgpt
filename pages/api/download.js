@@ -46,37 +46,21 @@ export default async function handler(req, res) {
     });
   }
 
-  res.statusCode = 200;
-
-  res.setHeader(
-    'Content-Type',
-    'video/mp4'
-  );
-
-  res.setHeader(
-    'Content-Disposition',
-    'attachment; filename="Bilibili-Video.mp4"'
-  );
-
-  res.setHeader(
-    'Cache-Control',
-    'no-store, no-cache, must-revalidate'
-  );
-
-  res.setHeader(
-    'X-Content-Type-Options',
-    'nosniff'
-  );
-
   const ytDlp = spawn(
     'yt-dlp',
     [
-      '--no-part',
+      '--no-playlist',
       '--no-cache-dir',
+
+      // Single file only.
+      // Do NOT select separate video + audio streams.
       '-f',
-      'b',
+      'best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]',
+
+      // Stream directly to browser.
       '-o',
       '-',
+
       url,
     ],
     {
@@ -85,6 +69,35 @@ export default async function handler(req, res) {
   );
 
   let errorOutput = '';
+  let started = false;
+
+  ytDlp.stdout.on('data', (chunk) => {
+    if (!started) {
+      started = true;
+
+      res.statusCode = 200;
+
+      res.setHeader(
+        'Content-Type',
+        'video/mp4'
+      );
+
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="Bilibili-Video.mp4"'
+      );
+
+      res.setHeader(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate'
+      );
+
+      res.setHeader(
+        'X-Content-Type-Options',
+        'nosniff'
+      );
+    }
+  });
 
   ytDlp.stderr.on('data', (chunk) => {
     errorOutput += chunk.toString();
@@ -99,13 +112,13 @@ export default async function handler(req, res) {
     );
 
     if (!res.headersSent) {
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Could not start video download.',
       });
-    } else {
-      res.destroy();
     }
+
+    res.destroy();
   });
 
   ytDlp.on('close', (code) => {
@@ -114,6 +127,14 @@ export default async function handler(req, res) {
         '[BiliSave] yt-dlp failed:',
         errorOutput
       );
+
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          error:
+            'This video does not have a downloadable single-file format.',
+        });
+      }
 
       if (!res.destroyed) {
         res.destroy();
