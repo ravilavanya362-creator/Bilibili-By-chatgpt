@@ -1,5 +1,3 @@
-import { createDownloadJob } from '../../lib/downloadJobs';
-
 export const config = {
   api: {
     bodyParser: true,
@@ -34,55 +32,26 @@ export default async function handler(req, res) {
     });
   }
 
-  const url = String(
-    req.body?.url || ''
-  ).trim();
+  const url = String(req.body?.url || '').trim();
 
   if (!url) {
     return res.status(400).json({
       success: false,
-      error:
-        'Please enter a Bilibili URL.',
+      error: 'Please enter a Bilibili URL.',
     });
   }
 
   if (!isBilibiliUrl(url)) {
     return res.status(400).json({
       success: false,
-      error:
-        'Please enter a valid Bilibili or b23.tv URL.',
+      error: 'Please enter a valid Bilibili or b23.tv URL.',
     });
   }
 
-  try {
-    const job = createDownloadJob(url);
-
-    console.log(
-      `[BiliSave] Download job created: ${job.id}`
-    );
-
-    return res.status(200).json({
-      success: true,
-      mode: 'job',
-      jobId: job.id,
-      status: job.status,
-      progress: job.progress,
-      title: job.title,
-      downloadUrl:
-        `/api/download?jobId=${encodeURIComponent(
-          job.id
-        )}`,
-    });
-  } catch (error) {
-    console.error(
-      '[BiliSave] Job creation error:',
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      error:
-        'Could not start this Bilibili download.',
-    });
-  }
+  return res.status(200).json({
+    success: true,
+    mode: 'direct',
+    downloadUrl: `/api/download?url=${encodeURIComponent(url)}`,
+    ready: true,
+  });
 }
