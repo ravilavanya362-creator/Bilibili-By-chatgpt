@@ -1,65 +1,27 @@
-import fs from 'fs';
-
-import {
-  getDownloadJob,
-  deleteDownloadJob,
-  safeFilename,
-} from '../../lib/downloadJobs';
+import { spawn } from 'child_process';
 
 export const config = {
   api: {
     responseLimit: false,
-    bodyParser: true,
+    bodyParser: false,
   },
 };
 
-function waitForJob(
-  id,
-  timeout = 25 * 60 * 1000
-) {
-  return new Promise((resolve, reject) => {
-    const started = Date.now();
+function isBilibiliUrl(value) {
+  try {
+    const u = new URL(value);
+    const host = u.hostname.toLowerCase();
 
-    const check = () => {
-      const job = getDownloadJob(id);
-
-      if (!job) {
-        return reject(
-          new Error(
-            'Download job was not found or has expired.'
-          )
-        );
-      }
-
-      if (job.status === 'ready') {
-        return resolve(job);
-      }
-
-      if (job.status === 'error') {
-        return reject(
-          new Error(
-            job.error ||
-            'Could not prepare the video.'
-          )
-        );
-      }
-
-      if (
-        Date.now() - started >
-        timeout
-      ) {
-        return reject(
-          new Error(
-            'Video preparation timed out. Please try again.'
-          )
-        );
-      }
-
-      setTimeout(check, 500);
-    };
-
-    check();
-  });
+    return (
+      host === 'b23.tv' ||
+      host === 'www.b23.tv' ||
+      host === 'bilibili.com' ||
+      host === 'www.bilibili.com' ||
+      host.endsWith('.bilibili.com')
+    );
+  } catch {
+    return false;
+  }
 }
 
 export default async function handler(req, res) {
@@ -72,113 +34,96 @@ export default async function handler(req, res) {
     });
   }
 
-  const jobId =
-    typeof req.query?.jobId === 'string'
-      ? req.query.jobId
+  const url =
+    typeof req.query?.url === 'string'
+      ? req.query.url
       : '';
 
-  if (!jobId) {
+  if (!url || !isBilibiliUrl(url)) {
     return res.status(400).json({
       success: false,
-      error: 'Download job is missing.',
+      error: 'Invalid Bilibili URL.',
     });
   }
 
-  try {
-    const job = await waitForJob(jobId);
+  res.statusCode = 200;
 
-    if (
-      !job.file ||
-      !fs.existsSync(job.file)
-    ) {
-      throw new Error(
-        'Prepared MP4 is no longer available.'
-      );
+  res.setHeader(
+    'Content-Type',
+    'video/mp4'
+  );
+
+  res.setHeader(
+    'Content-Disposition',
+    'attachment; filename="Bilibili-Video.mp4"'
+  );
+
+  res.setHeader(
+    'Cache-Control',
+    'no-store, no-cache, must-revalidate'
+  );
+
+  res.setHeader(
+    'X-Content-Type-Options',
+    'nosniff'
+  );
+
+  const ytDlp = spawn(
+    'yt-dlp',
+    [
+      '--no-part',
+      '--no-cache-dir',
+      '-f',
+      'b',
+      '-o',
+      '-',
+      url,
+    ],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
     }
+  );
 
-    const stat = fs.statSync(job.file);
+  let errorOutput = '';
 
-    const title = safeFilename(
-      job.title || 'Bilibili Video'
-    );
+  ytDlp.stderr.on('data', (chunk) => {
+    errorOutput += chunk.toString();
+  });
 
-    res.statusCode = 200;
+  ytDlp.stdout.pipe(res);
 
-    res.setHeader(
-      'Content-Type',
-      'video/mp4'
-    );
-
-    res.setHeader(
-      'Content-Length',
-      stat.size
-    );
-
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="Bilibili-Video.mp4"; filename*=UTF-8''${encodeURIComponent(
-        title + '.mp4'
-      )}`
-    );
-
-    res.setHeader(
-      'Cache-Control',
-      'no-store, no-cache, must-revalidate'
-    );
-
-    res.setHeader(
-      'Pragma',
-      'no-cache'
-    );
-
-    res.setHeader(
-      'X-Content-Type-Options',
-      'nosniff'
-    );
-
-    await new Promise(
-      (resolve, reject) => {
-        const stream =
-          fs.createReadStream(
-            job.file
-          );
-
-        stream.on(
-          'error',
-          reject
-        );
-
-        stream.on(
-          'end',
-          resolve
-        );
-
-        stream.pipe(res);
-      }
-    );
-
-    console.log(
-      `[BiliSave] Job ${jobId}: MP4 sent successfully.`
-    );
-
-    deleteDownloadJob(jobId);
-  } catch (error) {
+  ytDlp.on('error', (error) => {
     console.error(
-      `[BiliSave] Download ${jobId} error:`,
+      '[BiliSave] yt-dlp error:',
       error
     );
 
     if (!res.headersSent) {
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
-        error:
-          error.message ||
-          'Could not download the MP4.',
+        error: 'Could not start video download.',
       });
-    }
-
-    if (!res.destroyed) {
+    } else {
       res.destroy();
     }
-  }
+  });
+
+  ytDlp.on('close', (code) => {
+    if (code !== 0) {
+      console.error(
+        '[BiliSave] yt-dlp failed:',
+        errorOutput
+      );
+
+      if (!res.destroyed) {
+        res.destroy();
+      }
+    }
+  });
+
+  req.on('close', () => {
+    if (!ytDlp.killed) {
+      ytDlp.kill('SIGTERM');
+    }
+  });
 }
