@@ -23,7 +23,7 @@ export default function Home({ allPosts }) {
   };
   
     const handleVideoDownload = () => {
-    if (!result?.videoUrl || downloadPreparing) return;
+    if (!result?.videoUrl) return;
 
     window.location.assign(result.videoUrl);
   };
@@ -36,7 +36,7 @@ export default function Home({ allPosts }) {
   setLoading(true);
   setError('');
   setResult(null);
-  setDownloadPreparing(true);
+  setDownloadPreparing(flase);
 
   try {
     const res = await fetch('/api/parse', {
@@ -47,26 +47,8 @@ export default function Home({ allPosts }) {
       body: JSON.stringify({
         url: url.trim(),
       }),
-  const handleDownload = async (e) => {
-    e.preventDefault();
-
-    if (loading || !url.trim()) return;
-
-    setLoading(true);
-    setError('');
-    setResult(null);
-    setDownloadPreparing(false);
-
-    try {
-      const res = await fetch('/api/parse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: url.trim(),
-        }),
-      });
+  
+        
 
       const data = await res.json();
 
@@ -92,16 +74,7 @@ export default function Home({ allPosts }) {
       );
     }
   };
-    checkStatus();
-  } catch (err) {
-    setLoading(false);
-    setDownloadPreparing(false);
-
-    setError(
-      err.message || 'Something went wrong.'
-    );
-  }
-};
+  
   function formatFileSize(bytes) {
   const value = Number(bytes) || 0;
 
