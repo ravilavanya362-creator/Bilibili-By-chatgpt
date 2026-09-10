@@ -662,4 +662,4 @@ export async function getStaticProps() {
       allPosts,
     },
   };
-}
+                    }
