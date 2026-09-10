@@ -47,79 +47,51 @@ export default function Home({ allPosts }) {
       body: JSON.stringify({
         url: url.trim(),
       }),
-    });
+  const handleDownload = async (e) => {
+    e.preventDefault();
 
-    const data = await res.json();
+    if (loading || !url.trim()) return;
 
-    if (!res.ok || data.success === false) {
-      throw new Error(
-        data.error || 'Unable to process this video.'
-      );
-    }
+    setLoading(true);
+    setError('');
+    setResult(null);
+    setDownloadPreparing(false);
 
-    const downloadUrl = data.downloadUrl;
-    const jobId = data.jobId;
+    try {
+      const res = await fetch('/api/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url.trim(),
+        }),
+      });
 
-    if (!downloadUrl || !jobId) {
-      throw new Error(
-        'Download job was not created correctly.'
-      );
-    }
+      const data = await res.json();
 
-    setResult({
-      ...data,
-      videoUrl: downloadUrl,
-    });
-
-    setLoading(false);
-
-    const checkStatus = async () => {
-      try {
-        const statusRes = await fetch(
-          `/api/status?jobId=${encodeURIComponent(jobId)}`,
-          {
-            cache: 'no-store',
-          }
-        );
-
-        const statusData = await statusRes.json();
-
-        if (!statusRes.ok || statusData.success === false) {
-          throw new Error(
-            statusData.error ||
-              'Unable to check download status.'
-          );
-        }
-
-        if (statusData.status === 'ready') {
-  setDownloadPreparing(false);
-
-  setResult((prev) => ({
-    ...prev,
-    videoUrl: downloadUrl,
-    ready: true,
-  }));
-
-  return;
-        }
-
-        if (statusData.status === 'error') {
-          throw new Error(
-            statusData.error ||
-              'Could not prepare the video.'
-          );
-        }
-
-        setTimeout(checkStatus, 1000);
-      } catch (err) {
-        setDownloadPreparing(false);
-        setError(
-          err.message ||
-            'Something went wrong while preparing the video.'
+      if (!res.ok || data.success === false) {
+        throw new Error(
+          data.error || 'Unable to process this video.'
         );
       }
-    };
 
+      setResult({
+        ...data,
+        videoUrl: data.downloadUrl,
+        ready: true,
+      });
+
+      setLoading(false);
+    } catch (err) {
+      setLoading(false);
+      setDownloadPreparing(false);
+
+      setError(
+        err.message || 'Something went wrong.'
+      );
+    }
+  };
     checkStatus();
   } catch (err) {
     setLoading(false);
