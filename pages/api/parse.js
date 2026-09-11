@@ -1,15 +1,18 @@
-export const config = {
-  api: {
-    bodyParser: true,
-    responseLimit: false,
-  },
-};
+// Simple, proven approach: yt-dlp only fetches metadata here (title,
+// thumbnail, duration). The actual download+merge happens in download.js,
+// where yt-dlp itself (not a hand-rolled ffmpeg+headers reconstruction)
+// re-fetches fresh signed CDN URLs and merges streams. This avoids passing
+// Bilibili's short-lived signed URLs between separate requests, which is
+// what caused 403 Forbidden errors in the previous approach.
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 function isBilibiliUrl(value) {
   try {
     const u = new URL(value);
     const host = u.hostname.toLowerCase();
-
     return (
       host === 'b23.tv' ||
       host === 'www.b23.tv' ||
@@ -23,35 +26,44 @@ function isBilibiliUrl(value) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
+  const url = req.method === 'POST' ? req.body?.url : req.query.url;
 
-    return res.status(405).json({
-      success: false,
-      error: 'Method not allowed',
-    });
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return res.status(400).json({ success: false, error: 'Please enter a Bilibili URL.' });
   }
 
-  const url = String(req.body?.url || '').trim();
+  const trimmedUrl = url.trim();
 
-  if (!url) {
-    return res.status(400).json({
-      success: false,
-      error: 'Please enter a Bilibili URL.',
-    });
+  if (!isBilibiliUrl(trimmedUrl)) {
+    return res.status(400).json({ success: false, error: 'Please enter a valid Bilibili or b23.tv URL.' });
   }
 
-  if (!isBilibiliUrl(url)) {
-    return res.status(400).json({
+  try {
+    const { stdout } = await execFileAsync(
+      'yt-dlp',
+      ['--no-warnings', '--dump-single-json', '--no-playlist', trimmedUrl],
+      { timeout: 60000, maxBuffer: 1024 * 1024 * 20 }
+    );
+
+    const firstLine = stdout.trim().split('\n')[0];
+    const info = JSON.parse(firstLine);
+
+    const title = info.title || 'Bilibili Video';
+
+    return res.status(200).json({
+      success: true,
+      title,
+      thumbnail: info.thumbnail || null,
+      duration: info.duration || null,
+      quality: info.height ? `${info.height}p` : null,
+      filesize: info.filesize || info.filesize_approx || null,
+      videoUrl: trimmedUrl,
+    });
+  } catch (error) {
+    console.error('[BiliSave] Parse error:', error);
+    return res.status(200).json({
       success: false,
-      error: 'Please enter a valid Bilibili or b23.tv URL.',
+      error: 'Could not fetch video details. The video may be private, deleted, or region-locked.',
     });
   }
-
-  return res.status(200).json({
-    success: true,
-    mode: 'direct',
-    downloadUrl: `/api/download?url=${encodeURIComponent(url)}`,
-    ready: true,
-  });
 }
